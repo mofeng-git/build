@@ -1,5 +1,5 @@
-name: "Rebuild Armbian"
-author: "https://github.com/armbian"
+name: "Build Armbian"
+author: "https://github.com/mofeng-git/build/"
 description: "Build Armbian Linux"
 inputs:
 
@@ -20,7 +20,7 @@ inputs:
   armbian_target:
     description: "Build image or kernel"
     required: false
-    default: "kernel"
+    default: "image"
 
   armbian_branch:
     description: "Choose framework branch"
@@ -30,7 +30,7 @@ inputs:
   armbian_kernel_branch:
     description: "Choose kernel branch"
     required: false
-    default: "current"
+    default: "edge"
 
   armbian_release:
     description: "Choose userspace release"
@@ -45,7 +45,7 @@ inputs:
   armbian_board:
     description: "Select hardware platform"
     required: false
-    default: "uefi-x86"
+    default: "onecloud"
 
   armbian_ui:
     description: "Armbian user interface"
@@ -85,7 +85,7 @@ inputs:
   armbian_release_body:
     description: "Armbian images"
     required: false
-    default: "Build with [Armbian tools](https://github.com/armbian/build)"
+    default: "Build with [Armbian tools](https://github.com/mofeng-git/build/)"
 
 runs:
   using: "composite"

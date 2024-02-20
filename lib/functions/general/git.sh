@@ -48,7 +48,7 @@ function regular_git() {
 function improved_git_fetch() {
 	declare -a verbose_params=() && if_user_on_terminal_and_not_logging_add verbose_params "--verbose" "--progress"
 	# --no-auto-maintenance requires a recent git version, not available on focal-like host OSs
-	improved_git fetch "${verbose_params[@]}" --recurse-submodules=no "$@"
+	improved_git fetch "${verbose_params[@]}" --recurse-submodules=no --depth 1 "$@"
 }
 
 # workaround new limitations imposed by CVE-2022-24765 fix in git, otherwise  "fatal: unsafe repository"

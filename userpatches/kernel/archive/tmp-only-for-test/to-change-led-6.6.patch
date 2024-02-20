@@ -1,0 +1,44 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: SilentWind <john.doe@somewhere.on.planet>
+Date: Tue, 6 Feb 2024 22:04:00 +0800
+Subject: Change led color
+ 
+Signed-off-by: SilentWind <john.doe@somewhere.on.planet>
+---
+ arch/arm/boot/dts/amlogic/meson8b-onecloud.dts | 10 +-
+ arch/arm/boot/dts/amlogic/meson8b.dtsi         | 52 +---------
+ 2 files changed, 6 insertions(+), 56 deletions(-)
+
+diff --git a/arch/arm/boot/dts/amlogic/meson8b-onecloud.dts b/arch/arm/boot/dts/amlogic/meson8b-onecloud.dts
+index 6ed195220..b1379f940 100644
+--- a/arch/arm/boot/dts/amlogic/meson8b-onecloud.dts
++++ b/arch/arm/boot/dts/amlogic/meson8b-onecloud.dts
+@@ -57,20 +57,20 @@ leds {
+ 
+ 		red {
+ 			label = "onecloud:red:alive";
+ 			gpios = <&gpio_ao GPIOAO_2 GPIO_ACTIVE_HIGH>;
+ 
+-			default-state = "on";
+-			linux,default-trigger = "default-on";
++			default-state = "off";
++			linux,default-trigger = "mmc1";
+ 		};
+ 
+ 		green {
+ 			label = "onecloud:green:alive";
+ 			gpios = <&gpio_ao GPIOAO_3 GPIO_ACTIVE_HIGH>;
+ 
+-			default-state = "off";
+-			linux,default-trigger = "mmc1";
++			default-state = "on";
++			linux,default-trigger = "default-on";
+ 		};
+ 
+ 		blue {
+ 			label = "onecloud:blue:alive";
+ 			gpios = <&gpio_ao GPIOAO_4 GPIO_ACTIVE_HIGH>;
+
+-- 
+Created with Armbian build tools https://github.com/armbian/build
+

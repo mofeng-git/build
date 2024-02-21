@@ -29,7 +29,8 @@ if [ ! -f "output/amlimg/AmlImg" ];then
 fi
 
 if [ ! -f "output/amlimg/eMMC.burn.img" ];then
-  sudo curl -L -o output/amlimg/eMMC.burn.img https://github.com/hzyitc/u-boot-onecloud/releases/download/build-20221028-0940/eMMC.burn.img
+  #sudo curl -L -o output/amlimg/eMMC.burn.img https://github.com/hzyitc/u-boot-onecloud/releases/download/build-20221028-0940/eMMC.burn.img
+  cp -f userpatches/eMMC.burn.img output/amlimg/
 fi
 
 #解包转换为线刷包所需格式

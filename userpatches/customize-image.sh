@@ -19,25 +19,12 @@ BUILD_DESKTOP=$4
 
 Main() {
 	case $RELEASE in
-		stretch)
-			# your code here
-			;;
-		buster)
-			# your code here
-			;;
-		bullseye)
-			# your code here
-			;;
-		bionic)
-			# your code here
-			;;
-		focal)
+		bookworm)
 			# your code here
 			;;
     jammy)
-		  #cd /tmp/overlay/One-KVM-main
-      #bash install.sh
-      #apt clean
+		  cd /tmp/overlay/One-KVM
+      bash install.sh
 			;;
 	esac
 } # Main

@@ -201,12 +201,17 @@ EOF
 
 
 #check-environment
+
+#Only for onecloud Armbian with kernel 5.10,now this these two steps is deprecated!
 #override-uboot
 #change-device-tree
+
 install-dependencies
 install-pikvm
 add-patches
 fix-motd
+
+#H.264 soft encoded video, default off, uncomment if needed
 #kvmd-ffmpeg-h-264
 #show-info
 #reboot

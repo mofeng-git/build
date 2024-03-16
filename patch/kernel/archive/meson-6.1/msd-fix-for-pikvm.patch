@@ -1,0 +1,337 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: SilentWind <john.doe@somewhere.on.planet>
+Date: Sat, 16 Mar 2024 16:05:30 +0800
+Subject: Patching kernel meson files drivers/usb/dwc2/gadget.c
+ drivers/usb/gadget/function/f_hid.c
+ drivers/usb/gadget/function/f_mass_storage.c
+ drivers/usb/gadget/function/storage_common.c
+ drivers/usb/gadget/function/storage_common.h
+ drivers/usb/gadget/function/u_hid.h
+
+Signed-off-by: SilentWind <john.doe@somewhere.on.planet>
+---
+ drivers/usb/dwc2/gadget.c                    | 73 ++++++++++
+ drivers/usb/gadget/function/f_hid.c          | 17 ++-
+ drivers/usb/gadget/function/f_mass_storage.c | 31 +++-
+ drivers/usb/gadget/function/storage_common.c | 11 ++
+ drivers/usb/gadget/function/storage_common.h |  2 +
+ drivers/usb/gadget/function/u_hid.h          |  1 +
+ 6 files changed, 131 insertions(+), 4 deletions(-)
+
+diff --git a/drivers/usb/dwc2/gadget.c b/drivers/usb/dwc2/gadget.c
+index 16c5f976f1..2034ffee44 100644
+--- a/drivers/usb/dwc2/gadget.c
++++ b/drivers/usb/dwc2/gadget.c
+@@ -4633,18 +4633,91 @@ static int dwc2_hsotg_vbus_draw(struct usb_gadget *gadget, unsigned int mA)
+ 	if (IS_ERR_OR_NULL(hsotg->uphy))
+ 		return -ENOTSUPP;
+ 	return usb_phy_set_power(hsotg->uphy, mA);
+ }
+ 
++/**
++ * dwc2_hsotg_wakeup - send wakeup signal to the host
++ * @gadget: The usb gadget state
++ *
++ * If the gadget is in device mode and in the L1 or L2 state,
++ * it sends a wakeup signal to the host.
++ */
++static int dwc2_hsotg_wakeup(struct usb_gadget *gadget)
++{
++	struct dwc2_hsotg *hsotg = to_hsotg(gadget);
++	int ret = -1;
++	unsigned long flags;
++
++	spin_lock_irqsave(&hsotg->lock, flags);
++
++	if (!hsotg->remote_wakeup_allowed) {
++		dev_dbg(hsotg->dev,
++			"wakeup: signalling skipped: is not allowed by host\n");
++		goto skip;
++	}
++	if (hsotg->lx_state != DWC2_L1 && hsotg->lx_state != DWC2_L2) {
++		dev_dbg(hsotg->dev,
++			"wakeup: signalling skipped: gadget not in L1/L2 state: %d\n", hsotg->lx_state);
++		goto skip;
++	}
++	if (!dwc2_is_device_mode(hsotg)) {
++		dev_dbg(hsotg->dev,
++			"wakeup: signalling skipped: gadget not in device mode\n");
++		goto skip;
++	}
++
++	/*if (hsotg->in_ppd) {
++		if (dwc2_exit_partial_power_down(hsotg, 1, true))
++			dev_err(hsotg->dev, "wakeup: exit partial_power_down failed\n");
++		call_gadget(hsotg, resume);
++	}*/
++	if (hsotg->params.power_down == DWC2_POWER_DOWN_PARAM_NONE && hsotg->bus_suspended) {
++		u32 pcgctl;
++
++		dev_dbg(hsotg->dev, "wakeup: exiting device clock gating\n");
++
++		/* Clear the Gate hclk. */
++		pcgctl = dwc2_readl(hsotg, PCGCTL);
++		pcgctl &= ~PCGCTL_GATEHCLK;
++		dwc2_writel(hsotg, pcgctl, PCGCTL);
++		udelay(5);
++
++		/* Phy Clock bit. */
++		pcgctl = dwc2_readl(hsotg, PCGCTL);
++		pcgctl &= ~PCGCTL_STOPPCLK;
++		dwc2_writel(hsotg, pcgctl, PCGCTL);
++		udelay(5);
++
++		hsotg->bus_suspended = false;
++	}
++
++	dev_dbg(hsotg->dev, "wakeup: sending signal to the host");
++
++	dwc2_set_bit(hsotg, DCTL, DCTL_RMTWKUPSIG);
++	mdelay(10);
++	dwc2_clear_bit(hsotg, DCTL, DCTL_RMTWKUPSIG);
++
++	/* After the signalling, the USB core wakes up to L0 */
++	call_gadget(hsotg, resume);
++	hsotg->lx_state = DWC2_L0;
++
++	ret = 0;
++skip:
++	spin_unlock_irqrestore(&hsotg->lock, flags);
++	return ret;
++}
++
+ static const struct usb_gadget_ops dwc2_hsotg_gadget_ops = {
+ 	.get_frame	= dwc2_hsotg_gadget_getframe,
+ 	.set_selfpowered	= dwc2_hsotg_set_selfpowered,
+ 	.udc_start		= dwc2_hsotg_udc_start,
+ 	.udc_stop		= dwc2_hsotg_udc_stop,
+ 	.pullup                 = dwc2_hsotg_pullup,
+ 	.vbus_session		= dwc2_hsotg_vbus_session,
+ 	.vbus_draw		= dwc2_hsotg_vbus_draw,
++	.wakeup			= dwc2_hsotg_wakeup,
+ };
+ 
+ /**
+  * dwc2_hsotg_initep - initialise a single endpoint
+  * @hsotg: The device state.
+diff --git a/drivers/usb/gadget/function/f_hid.c b/drivers/usb/gadget/function/f_hid.c
+index 1125f47158..466c71c128 100644
+--- a/drivers/usb/gadget/function/f_hid.c
++++ b/drivers/usb/gadget/function/f_hid.c
+@@ -52,10 +52,12 @@ struct f_hidg {
+ 	unsigned int			qlen;
+ 
+ 	/* send report */
+ 	spinlock_t			write_spinlock;
+ 	bool				write_pending;
++	/* attempt to wake up the host before write */
++	bool				wakeup_on_write;
+ 	wait_queue_head_t		write_queue;
+ 	struct usb_request		*req;
+ 
+ 	int				minor;
+ 	struct cdev			cdev;
+@@ -330,16 +332,26 @@ static void f_hidg_req_complete(struct usb_ep *ep, struct usb_request *req)
+ 
+ static ssize_t f_hidg_write(struct file *file, const char __user *buffer,
+ 			    size_t count, loff_t *offp)
+ {
+ 	struct f_hidg *hidg  = file->private_data;
++	struct usb_composite_dev *cdev = hidg->func.config->cdev;
+ 	struct usb_request *req;
+ 	unsigned long flags;
+ 	ssize_t status = -ENOMEM;
+ 
++ 
++	/*
++	 * remote wakeup is allowed only when the corresponding bit
++	 * in config descriptor is set and wakeup_on_write is enabled.
++         * FIXME: cdev->config can be NULLed on disconnect.
++	 */
++	if (hidg->wakeup_on_write /*&& cdev->config->bmAttributes & 0x20*/)
++		usb_gadget_wakeup(cdev->gadget);
++		
+ 	spin_lock_irqsave(&hidg->write_spinlock, flags);
+-
++ 
+ #define WRITE_COND (!hidg->write_pending)
+ try_again:
+ 	/* write queue */
+ 	while (!WRITE_COND) {
+ 		spin_unlock_irqrestore(&hidg->write_spinlock, flags);
+@@ -916,10 +928,11 @@ end:									\
+ CONFIGFS_ATTR(f_hid_opts_, name)
+ 
+ F_HID_OPT(subclass, 8, 255);
+ F_HID_OPT(protocol, 8, 255);
+ F_HID_OPT(report_length, 16, 65535);
++F_HID_OPT(wakeup_on_write, 8, 1);
+ 
+ static ssize_t f_hid_opts_report_desc_show(struct config_item *item, char *page)
+ {
+ 	struct f_hid_opts *opts = to_f_hid_opts(item);
+ 	int result;
+@@ -974,10 +987,11 @@ static ssize_t f_hid_opts_dev_show(struct config_item *item, char *page)
+ CONFIGFS_ATTR_RO(f_hid_opts_, dev);
+ 
+ static struct configfs_attribute *hid_attrs[] = {
+ 	&f_hid_opts_attr_subclass,
+ 	&f_hid_opts_attr_protocol,
++	&f_hid_opts_attr_wakeup_on_write,
+ 	&f_hid_opts_attr_report_length,
+ 	&f_hid_opts_attr_report_desc,
+ 	&f_hid_opts_attr_dev,
+ 	NULL,
+ };
+@@ -1105,10 +1119,11 @@ static struct usb_function *hidg_alloc(struct usb_function_instance *fi)
+ 			mutex_unlock(&opts->lock);
+ 			return ERR_PTR(-ENOMEM);
+ 		}
+ 	}
+ 
++	hidg->wakeup_on_write = opts->wakeup_on_write;
+ 	mutex_unlock(&opts->lock);
+ 
+ 	hidg->func.name    = "hid";
+ 	hidg->func.bind    = hidg_bind;
+ 	hidg->func.unbind  = hidg_unbind;
+diff --git a/drivers/usb/gadget/function/f_mass_storage.c b/drivers/usb/gadget/function/f_mass_storage.c
+index 950c9435be..885e5c74f2 100644
+--- a/drivers/usb/gadget/function/f_mass_storage.c
++++ b/drivers/usb/gadget/function/f_mass_storage.c
+@@ -2550,14 +2550,25 @@ static ssize_t file_store(struct device *dev, struct device_attribute *attr,
+ 	struct rw_semaphore	*filesem = dev_get_drvdata(dev);
+ 
+ 	return fsg_store_file(curlun, filesem, buf, count);
+ }
+ 
++static ssize_t forced_eject_store(struct device *dev,
++				  struct device_attribute *attr,
++				  const char *buf, size_t count)
++{
++	struct fsg_lun		*curlun = fsg_lun_from_dev(dev);
++	struct rw_semaphore	*filesem = dev_get_drvdata(dev);
++
++	return fsg_store_forced_eject(curlun, filesem, buf, count);
++}
++
+ static DEVICE_ATTR_RW(nofua);
+ /* mode wil be set in fsg_lun_attr_is_visible() */
+ static DEVICE_ATTR(ro, 0, ro_show, ro_store);
+ static DEVICE_ATTR(file, 0, file_show, file_store);
++static DEVICE_ATTR_WO(forced_eject);
+ 
+ /****************************** FSG COMMON ******************************/
+ 
+ static void fsg_lun_release(struct device *dev)
+ {
+@@ -2707,10 +2718,11 @@ EXPORT_SYMBOL_GPL(fsg_common_set_cdev);
+ 
+ static struct attribute *fsg_lun_dev_attrs[] = {
+ 	&dev_attr_ro.attr,
+ 	&dev_attr_file.attr,
+ 	&dev_attr_nofua.attr,
++	&dev_attr_forced_eject.attr,
+ 	NULL
+ };
+ 
+ static umode_t fsg_lun_dev_is_visible(struct kobject *kobj,
+ 				      struct attribute *attr, int idx)
+@@ -2852,15 +2864,15 @@ void fsg_common_set_inquiry_string(struct fsg_common *common, const char *vn,
+ 	int i;
+ 
+ 	/* Prepare inquiryString */
+ 	i = get_default_bcdDevice();
+ 	snprintf(common->inquiry_string, sizeof(common->inquiry_string),
+-		 "%-8s%-16s%04x", vn ?: "Linux",
++		 "%-8s%-16s%04x", vn ?: "PiKVM",
+ 		 /* Assume product name dependent on the first LUN */
+ 		 pn ?: ((*common->luns)->cdrom
+-		     ? "File-CD Gadget"
+-		     : "File-Stor Gadget"),
++		     ? "CD-ROM Drive"
++		     : "Flash Drive"),
+ 		 i);
+ }
+ EXPORT_SYMBOL_GPL(fsg_common_set_inquiry_string);
+ 
+ static void fsg_common_release(struct fsg_common *common)
+@@ -3120,10 +3132,23 @@ static ssize_t fsg_lun_opts_inquiry_string_store(struct config_item *item,
+ 	return fsg_store_inquiry_string(to_fsg_lun_opts(item)->lun, page, len);
+ }
+ 
+ CONFIGFS_ATTR(fsg_lun_opts_, inquiry_string);
+ 
++static ssize_t fsg_lun_opts_forced_eject_store(struct config_item *item,
++					       const char *page, size_t len)
++{
++	struct fsg_lun_opts *opts = to_fsg_lun_opts(item);
++	struct fsg_opts *fsg_opts = to_fsg_opts(opts->group.cg_item.ci_parent);
++
++	return fsg_store_forced_eject(opts->lun, &fsg_opts->common->filesem,
++				      page, len);
++}
++
++CONFIGFS_ATTR_WO(fsg_lun_opts_, forced_eject);
++
++
+ static struct configfs_attribute *fsg_lun_attrs[] = {
+ 	&fsg_lun_opts_attr_file,
+ 	&fsg_lun_opts_attr_ro,
+ 	&fsg_lun_opts_attr_removable,
+ 	&fsg_lun_opts_attr_cdrom,
+diff --git a/drivers/usb/gadget/function/storage_common.c b/drivers/usb/gadget/function/storage_common.c
+index f7e6c42558..a0e5b7bc25 100644
+--- a/drivers/usb/gadget/function/storage_common.c
++++ b/drivers/usb/gadget/function/storage_common.c
+@@ -517,6 +517,17 @@ ssize_t fsg_store_inquiry_string(struct fsg_lun *curlun, const char *buf,
+ 
+ 	return count;
+ }
+ EXPORT_SYMBOL_GPL(fsg_store_inquiry_string);
+ 
++ssize_t fsg_store_forced_eject(struct fsg_lun *curlun, struct rw_semaphore *filesem,
++			       const char *buf, size_t count)
++{
++	int ret;
++
++	curlun->prevent_medium_removal = 0;
++	ret = fsg_store_file(curlun, filesem, "", 0);
++	return ret < 0 ? ret : count;
++}
++EXPORT_SYMBOL_GPL(fsg_store_forced_eject);
++
+ MODULE_LICENSE("GPL");
+diff --git a/drivers/usb/gadget/function/storage_common.h b/drivers/usb/gadget/function/storage_common.h
+index bdeb1e233f..ab1aa67383 100644
+--- a/drivers/usb/gadget/function/storage_common.h
++++ b/drivers/usb/gadget/function/storage_common.h
+@@ -217,7 +217,9 @@ ssize_t fsg_store_cdrom(struct fsg_lun *curlun, struct rw_semaphore *filesem,
+ 			const char *buf, size_t count);
+ ssize_t fsg_store_removable(struct fsg_lun *curlun, const char *buf,
+ 			    size_t count);
+ ssize_t fsg_store_inquiry_string(struct fsg_lun *curlun, const char *buf,
+ 				 size_t count);
++ssize_t fsg_store_forced_eject(struct fsg_lun *curlun, struct rw_semaphore *filesem,
++			       const char *buf, size_t count);				 
+ 
+ #endif /* USB_STORAGE_COMMON_H */
+diff --git a/drivers/usb/gadget/function/u_hid.h b/drivers/usb/gadget/function/u_hid.h
+index 84e6da3024..a3e2f6053d 100644
+--- a/drivers/usb/gadget/function/u_hid.h
++++ b/drivers/usb/gadget/function/u_hid.h
+@@ -18,10 +18,11 @@
+ struct f_hid_opts {
+ 	struct usb_function_instance	func_inst;
+ 	int				minor;
+ 	unsigned char			subclass;
+ 	unsigned char			protocol;
++	unsigned char			wakeup_on_write;
+ 	unsigned short			report_length;
+ 	unsigned short			report_desc_length;
+ 	unsigned char			*report_desc;
+ 	bool				report_desc_alloc;
+ 
+-- 
+Created with Armbian build tools https://github.com/armbian/build
+

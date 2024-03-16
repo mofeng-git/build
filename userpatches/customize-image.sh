@@ -23,8 +23,8 @@ Main() {
 			# your code here
 			;;
     jammy)
-		  cd /tmp/overlay/One-KVM
-      bash install.sh
+		  #cd /tmp/overlay/One-KVM
+      #bash install.sh
 			;;
 	esac
 } # Main

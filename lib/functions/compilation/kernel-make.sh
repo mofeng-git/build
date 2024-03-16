@@ -87,5 +87,5 @@ function kernel_determine_toolchain() {
 	fi
 
 	kernel_compiler_version="$(eval env PATH="${toolchain}:${PATH}" "${KERNEL_COMPILER}gcc" -dumpfullversion -dumpversion)"
-	display_alert "Compiler version" "${KERNEL_COMPILER}gcc ${kernel_compiler_version}" "info"
+	display_alert "Compiler version" "${toolchain}:${PATH} ${KERNEL_COMPILER}gcc ${kernel_compiler_version}" "info"
 }

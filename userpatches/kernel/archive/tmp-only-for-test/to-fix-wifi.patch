@@ -1,0 +1,119 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: SilentWind <john.doe@somewhere.on.planet>
+Date: Mon, 26 Feb 2024 22:01:22 +0800
+Subject: Patching kernel meson files arch/arm/boot/dts/amlogic/meson.dtsi
+ arch/arm/boot/dts/amlogic/meson8b-onecloud.dts
+
+Signed-off-by: SilentWind <john.doe@somewhere.on.planet>
+---
+ arch/arm/boot/dts/amlogic/meson.dtsi           |  9 ++
+ arch/arm/boot/dts/amlogic/meson8b-onecloud.dts | 62 +++++++---
+ 2 files changed, 52 insertions(+), 19 deletions(-)
+
+diff --git a/arch/arm/boot/dts/amlogic/meson.dtsi b/arch/arm/boot/dts/amlogic/meson.dtsi
+index b95adb9a2..2f4e15235 100644
+--- a/arch/arm/boot/dts/amlogic/meson.dtsi
++++ b/arch/arm/boot/dts/amlogic/meson.dtsi
+@@ -155,10 +155,19 @@ sdio: mmc@8c20 {
+ 				interrupts = <GIC_SPI 28 IRQ_TYPE_EDGE_RISING>;
+ 				#address-cells = <1>;
+ 				#size-cells = <0>;
+ 				status = "disabled";
+ 			};
++			
++			sdio_wifi: mmc@8c30 {
++				compatible = "amlogic,meson-mx-sdio";
++				reg = <0x8c30 0x20>;
++				interrupts = <GIC_SPI 222 IRQ_TYPE_EDGE_RISING>;
++				#address-cells = <1>;
++				#size-cells = <0>;
++				status = "enabled";
++			};
+ 
+ 			spifc: spi@8c80 {
+ 				compatible = "amlogic,meson6-spifc";
+ 				reg = <0x8c80 0x80>;
+ 				#address-cells = <1>;
+diff --git a/arch/arm/boot/dts/amlogic/meson8b-onecloud.dts b/arch/arm/boot/dts/amlogic/meson8b-onecloud.dts
+index b1379f940..73c799bb3 100644
+--- a/arch/arm/boot/dts/amlogic/meson8b-onecloud.dts
++++ b/arch/arm/boot/dts/amlogic/meson8b-onecloud.dts
+@@ -376,32 +376,56 @@ &sdhc {
+ 	vmmc-supply = <&vcc_3v3>;
+ 	// vqmmc-supply = <&vcc_3v3>;
+ };
+ 
+ &sdio {
+-	status = "okay";
+-
+-	pinctrl-0 = <&sd_b_pins>;
+-	pinctrl-names = "default";
+-
+-	// SD card
+-	sd_card_slot: slot@1 {
+-		compatible = "mmc-slot";
+-		reg = <1>;
++		compatible = "amlogic,aml_sdio";
++		dev_name = "aml_sdio.0";
+ 		status = "okay";
++		reg = <0xc1108c20 0x20>;
++		pinctrl-names = "sd_clk_cmd_pins\0sd_all_pins\0emmc_clk_cmd_pins\0emmc_all_pins\0sdio_clk_cmd_pins\0sdio_all_pins\0sd_1bit_pins";
++		pinctrl-0 = <0x04>;
++		pinctrl-1 = <0x05>;
++		pinctrl-2 = <0x06>;
++		pinctrl-3 = <0x07>;
++		pinctrl-4 = <0x08>;
++		pinctrl-5 = <0x09>;
++		pinctrl-6 = <0x0a>;
++
++		sd {
++			status = "okay";
++			port = <0x01>;
++			pinname = "sd";
++			ocr_avail = <0x200000>;
++			caps = "MMC_CAP_4_BIT_DATA\0MMC_CAP_MMC_HIGHSPEED\0MMC_CAP_SD_HIGHSPEED";
++			f_min = <0x493e0>;
++			f_max = <0x2faf080>;
++			f_max_w = <0x2faf080>;
++			max_req_size = <0x20000>;
++			gpio_dat3 = "CARD_4";
++			jtag_pin = "CARD_0";
++			gpio_cd = "CARD_6";
++			irq_in = <0x03>;
++			irq_out = <0x05>;
++			card_type = <0x05>;
++		};
+ 
+-		bus-width = <4>;
+-		no-sdio;
+-		cap-mmc-highspeed;
+-		cap-sd-highspeed;
+-		disable-wp;
+-
+-		cd-gpios = <&gpio CARD_6 GPIO_ACTIVE_LOW>;
+-
+-		vmmc-supply = <&vcc_3v3>;
+-		// vqmmc-supply = <&vcc_3v3>;
++		sdio {
++			status = "ok";
++			port = <0x00>;
++			pinname = "sdio";
++			ocr_avail = <0x200000>;
++			caps = "MMC_CAP_4_BIT_DATA\0MMC_CAP_SDIO_IRQ\0MMC_CAP_MMC_HIGHSPEED\0MMC_CAP_SD_HIGHSPEED\0MMC_CAP_NONREMOVABLE";
++			f_min = <0x493e0>;
++			f_max = <0x2faf080>;
++			max_req_size = <0x20000>;
++			card_type = <0x03>;
++		};
+ 	};
++&sdio_wifi { 
++	status = "okay";
++	card_type = <0x03>;
+ };
+ 
+ &ethmac {
+ 	status = "okay";
+ 
+-- 
+Created with Armbian build tools https://github.com/armbian/build
+

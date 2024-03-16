@@ -1,0 +1,73 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: SilentWind <john.doe@somewhere.on.planet>
+Date: Mon, 4 Mar 2024 17:39:20 +0800
+Subject: Patching kernel meson files
+ arch/arm/boot/dts/amlogic/meson8b-onecloud.dts
+
+Signed-off-by: SilentWind <john.doe@somewhere.on.planet>
+---
+ arch/arm/boot/dts/amlogic/meson8b-onecloud.dts | 33 ++++++++++
+ 1 file changed, 33 insertions(+)
+
+diff --git a/arch/arm/boot/dts/amlogic/meson8b-onecloud.dts b/arch/arm/boot/dts/amlogic/meson8b-onecloud.dts
+index b1379f940..c745827ad 100644
+--- a/arch/arm/boot/dts/amlogic/meson8b-onecloud.dts
++++ b/arch/arm/boot/dts/amlogic/meson8b-onecloud.dts
+@@ -209,10 +209,29 @@ vcc_core: regulator-vcc-core {
+ 		pwm-supply = <&p12v>;
+ 
+ 		regulator-boot-on;
+ 		regulator-always-on;
+ 	};
++	wifi {
++		compatible = "amlogic,aml_broadcm_wifi";
++		dev_name = "aml_broadcm_wifi";
++		status = "okay";
++		interrupt_pin = "GPIOX_21";
++		irq_num = <0x04>;
++		irq_trigger_type = "GPIO_IRQ_HIGH";
++		power_on_pin = "GPIOX_11";
++		power_on_pin2 = "GPIOX_11";
++		clock_32k_pin = "GPIOX_10";
++	};
++
++	wifi_power {
++		compatible = "amlogic,wifi_power";
++		dev_name = "wifi_power";
++		status = "okay";
++		power_gpio = "GPIOX_11";
++		power_gpio2 = "GPIOX_11";
++	};	
+ };
+ 
+ &uart_AO {
+ 	status = "okay";
+ 	pinctrl-0 = <&uart_ao_a_pins>;
+@@ -398,10 +417,24 @@ sd_card_slot: slot@1 {
+ 		cd-gpios = <&gpio CARD_6 GPIO_ACTIVE_LOW>;
+ 
+ 		vmmc-supply = <&vcc_3v3>;
+ 		// vqmmc-supply = <&vcc_3v3>;
+ 	};
++	sdio {
++		status = "ok";
++		no-sd;
++      		no-mmc;
++      		bus-width = <4>;
++      		disable-wp;
++      		cap-sd-highspeed;
++      		non-removable;
++		pinname = "sdio";
++		caps = "MMC_CAP_4_BIT_DATA\0MMC_CAP_SDIO_IRQ\0MMC_CAP_MMC_HIGHSPEED\0MMC_CAP_SD_HIGHSPEED\0MMC_CAP_NONREMOVABLE";
++		max-frequency = <150000000>;
++		keep-power-in-suspend;
++		mmc-pwrseq = <&gpio GPIOX_11 GPIO_ACTIVE_LOW>>;
++		};
+ };
+ 
+ &ethmac {
+ 	status = "okay";
+ 
+-- 
+Created with Armbian build tools https://github.com/armbian/build
+

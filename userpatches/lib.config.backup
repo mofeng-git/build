@@ -1,0 +1,5 @@
+KERNELSOURCE=https://github.com/xdarklight/linux.git 
+KERNELBRANCH="branch:meson-mx-integration-6.7-20231221" 
+VENDOR="Armbian-xdarklight_by-SilentWind"
+MAINTAINER="SilentWind"
+TZDATA="Asia/Shanghai"

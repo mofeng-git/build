@@ -21,8 +21,26 @@ Main() {
 	case $RELEASE in
 		bookworm)
 			# your code here
+			cp /tmp/overlay/led/* /usr/bin/
+			cp -f /tmp/overlay/meson8b-onecloud.dtb /boot/dtb/meson8b-onecloud.dtb
+    	cat <<EOF >/etc/rc.local
+#!/bin/bash
+green_on
+exit 0
+EOF
+      chmod +x /etc/rc.local
+      systemctl enable rc-local.service
 			;;
     jammy)
+			cp /tmp/overlay/led/* /usr/bin/
+			cp -f /tmp/overlay/meson8b-onecloud.dtb /boot/dtb/meson8b-onecloud.dtb && echo "meson8b-onecloud.dtb file copied!"
+    	cat <<EOF >/etc/rc.local
+#!/bin/bash
+green_on
+exit 0
+EOF
+      chmod +x /etc/rc.local
+      systemctl enable rc-local.service
 		  #cd /tmp/overlay/One-KVM
       #bash install.sh
 			;;

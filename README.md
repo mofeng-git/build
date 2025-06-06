@@ -13,6 +13,8 @@
 
 >编译好的镜像不会在此处发布， 基础镜像与One-KVM镜像将会在[One-KVM](https://github.com/mofeng-git/One-KVM) release页发布。
 
+**本机构建**
+
 - Ubuntu 22.04 x64（虚拟机或实体机），至少 2GB 内存和 35GB 磁盘空间，用于本机构建，且已配置好sudo 或 root 访问权限；
 - 如您希望在中国大陆的主机上进行编译，还需配置好网络代理以便脚本能正确从Github上获取所需其他编译资源。
 
@@ -25,6 +27,20 @@ cd build
 #打包玩客云线刷镜像和卡刷文件包
 ./userpatches/burnimg-pack.sh output/images/Armbian_by-SilentWind_24.5.0-trunk_Onecloud_jammy_legacy_5.9.0-rc7_minimal.img
 ```
+
+**Docker 构建**
+
+镜像内包含所有依赖，源代码和构建缓存，可快速构建镜像。
+
+```bash
+#手动导入 onecloud_armbian_build 容器
+docker run -itd --name onecloud_armbian_build --privileged -v /dev:/dev onecloud_armbian_build bash
+docker exec -it onecloud_armbian_build bash
+#进入容器后
+cd /root/build
+bash start.sh
+```
+![alt text](.github/docker_build.png)
 
 One-KVM的预装命令在./userpatches/customize-image.sh，可根据需要进行修改。
 
